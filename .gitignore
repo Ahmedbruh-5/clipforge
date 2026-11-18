@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/.venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Build
+frontend/dist/
+*.egg
+
+# Environment / secrets
+.env
+backend/.env
+*.pem
+credentials.json
+token.json
+
+# Storage & database
+storage/originals/*
+storage/processed/*
+storage/thumbnails/*
+storage/temp/*
+storage/secrets/*
+!storage/**/.gitkeep
+!storage/secrets/.gitkeep
+database/*.db
+database/*.db-journal
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+.Thumbs.db
