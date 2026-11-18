@@ -59,13 +59,19 @@ export function Review() {
   async function setReview(clip: Clip, review_status: 'approved' | 'rejected' | 'pending') {
     try {
       const updated = await updateClip(clip.id, { review_status })
-      setClips((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      setClips((prev) => {
+        const next = prev.map((c) => (c.id === updated.id ? updated : c))
+        if (reviewFilter !== 'all' && updated.review_status !== reviewFilter) {
+          return next.filter((c) => c.id !== updated.id)
+        }
+        return next
+      })
       toast.success(
         review_status === 'approved'
           ? 'Clip approved'
           : review_status === 'rejected'
             ? 'Clip rejected'
-            : 'Review reset',
+            : 'Moved back to pending',
         clip.title,
       )
     } catch (err) {
@@ -185,20 +191,33 @@ export function Review() {
                   {clip.aspect_ratio} · {clip.resolution}
                 </div>
                 <div className="mt-auto flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 rounded border border-accent/40 px-2 py-1 text-xs text-accent hover:bg-accent/10"
-                    onClick={() => void setReview(clip, 'approved')}
-                  >
-                    <Check size={12} /> Approve
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10"
-                    onClick={() => void setReview(clip, 'rejected')}
-                  >
-                    <X size={12} /> Reject
-                  </button>
+                  {clip.review_status !== 'approved' && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded border border-accent/40 px-2 py-1 text-xs text-accent hover:bg-accent/10"
+                      onClick={() => void setReview(clip, 'approved')}
+                    >
+                      <Check size={12} /> Approve
+                    </button>
+                  )}
+                  {clip.review_status !== 'rejected' && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10"
+                      onClick={() => void setReview(clip, 'rejected')}
+                    >
+                      <X size={12} /> Reject
+                    </button>
+                  )}
+                  {clip.review_status !== 'pending' && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs text-muted hover:border-primary hover:text-text"
+                      onClick={() => void setReview(clip, 'pending')}
+                    >
+                      Undo review
+                    </button>
+                  )}
                   <Link
                     to={`/editor?video=${clip.video_id}&clip=${clip.id}`}
                     className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:border-primary"
