@@ -7,6 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import clips, detection, schedules, videos
 from app.core.config import get_settings
 from app.core.database import init_db
+from app.core.errors import register_exception_handlers
+from app.services.job_recovery import (
+    recover_interrupted_work,
+    shutdown_scheduler,
+    start_scheduler,
+)
 from app.services.video_service import ensure_dirs
 
 logging.basicConfig(
@@ -21,15 +27,20 @@ settings = get_settings()
 async def lifespan(_: FastAPI):
     ensure_dirs()
     init_db()
+    recover_interrupted_work()
+    start_scheduler()
     logger.info("ClipForge backend ready (storage=%s)", settings.storage_path)
     yield
+    shutdown_scheduler()
 
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.2.0",
+    version="0.7.0",
     lifespan=lifespan,
 )
+
+register_exception_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,11 +61,13 @@ def health():
     return {
         "status": "ok",
         "app": settings.app_name,
-        "phase": "6",
+        "phase": "7",
+        "version": "0.7.0",
         "features": [
             "upload",
             "metadata",
             "preview_stream",
+            "range_streaming",
             "manual_clips",
             "ffmpeg_render",
             "vertical_916",
@@ -66,5 +79,8 @@ def health():
             "improved_timeline",
             "youtube_oauth",
             "youtube_schedule",
+            "approved_only_schedule",
+            "job_recovery",
+            "error_hardening",
         ],
     }

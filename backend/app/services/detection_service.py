@@ -7,8 +7,8 @@ from pathlib import Path
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.core import database
 from app.core.config import Settings, get_settings
-from app.core.database import SessionLocal
 from app.engine.detector import generate_candidates
 from app.models.candidate import DetectionCandidate
 from app.models.clip import Clip
@@ -153,7 +153,7 @@ def _build_runtime_settings(options: DetectionOptions | None) -> Settings:
 
 
 def _run_detect_job(job_id: int, video_id: int, options: DetectionOptions | None) -> None:
-    db = SessionLocal()
+    db = database.SessionLocal()
     try:
         job = db.get(Job, job_id)
         video = db.get(Video, video_id)

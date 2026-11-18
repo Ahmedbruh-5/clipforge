@@ -45,7 +45,7 @@ export function Sidebar() {
         ))}
       </nav>
       <div className="border-t border-border px-4 py-3 text-xs text-muted">
-        Phase 6 · YouTube schedule
+        Phase 7 · Hardened local studio
       </div>
     </aside>
   )

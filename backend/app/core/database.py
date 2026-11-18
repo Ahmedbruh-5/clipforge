@@ -1,20 +1,50 @@
+"""SQLAlchemy engine/session setup.
+
+SQLite is the default local-first database. Set DATABASE_URL to a PostgreSQL
+URL later (e.g. postgresql+psycopg://user:pass@host/db) without rewriting
+models — keep this module as the single connection boundary.
+"""
+
+from __future__ import annotations
+
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import get_settings
 
-settings = get_settings()
-
-db_url = settings.resolved_database_url
-connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
-engine = create_engine(db_url, connect_args=connect_args)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+engine: Engine
+SessionLocal: sessionmaker[Session]
+db_url: str
 
 
 class Base(DeclarativeBase):
     pass
+
+
+def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
+def configure_engine(url: str | None = None) -> Engine:
+    """(Re)create the global engine. Used at import and by tests."""
+    global engine, SessionLocal, db_url
+    settings = get_settings()
+    db_url = url or settings.resolved_database_url
+    connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
+    # pool_pre_ping helps Postgres reconnect after idle drops; harmless for SQLite
+    engine = create_engine(db_url, connect_args=connect_args, pool_pre_ping=True)
+    if db_url.startswith("sqlite"):
+        event.listen(engine, "connect", _enable_sqlite_foreign_keys)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return engine
+
+
+configure_engine()
 
 
 def get_db() -> Generator[Session, None, None]:

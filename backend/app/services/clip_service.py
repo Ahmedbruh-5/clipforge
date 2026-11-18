@@ -7,8 +7,8 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import database
 from app.core.config import get_settings
-from app.core.database import SessionLocal
 from fastapi import UploadFile
 
 from app.engine.processor import process_clip_render, process_thumbnail
@@ -299,7 +299,7 @@ def clear_custom_thumbnail(db: Session, clip_id: int) -> dict:
 
 
 def _run_render_job(job_id: int, clip_id: int) -> None:
-    db = SessionLocal()
+    db = database.SessionLocal()
     try:
         job = db.get(Job, job_id)
         clip = db.get(Clip, clip_id)

@@ -10,6 +10,7 @@ import { CropControls } from '../components/editor/CropControls'
 import { ThumbnailPicker } from '../components/editor/ThumbnailPicker'
 import { TimelineSelector } from '../components/editor/TimelineSelector'
 import { VideoPlayer } from '../components/video/VideoPlayer'
+import { useJobPolling } from '../hooks/useJobPolling'
 import {
   clearClipThumbnail,
   createClip,
@@ -17,7 +18,6 @@ import {
   deleteClip,
   fetchCandidates,
   fetchClips,
-  fetchJob,
   fetchVideos,
   getErrorMessage,
   mediaUrl,
@@ -124,36 +124,38 @@ export function Editor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clipFromQuery, clips])
 
-  useEffect(() => {
-    if (!job || job.status === 'completed' || job.status === 'failed') return
-    const timer = window.setInterval(() => {
-      fetchJob(job.id)
-        .then(async (next) => {
-          setJob(next)
-          if (next.status === 'completed' && selectedVideoId) {
-            if (next.job_type === 'render') {
-              toast.success('Render complete', 'Clip exported with crop/thumbnail.')
-              await loadClips(selectedVideoId)
-            }
-            if (next.job_type === 'detect') {
-              setDetecting(false)
-              toast.success('Detection finished', next.message || undefined)
-              await loadCandidates(selectedVideoId)
-            }
-          }
-          if (next.status === 'failed') {
-            setDetecting(false)
-            toast.error('Job failed', next.error_message || undefined)
-            if (selectedVideoId) {
-              await loadClips(selectedVideoId)
-              await loadCandidates(selectedVideoId)
-            }
-          }
-        })
-        .catch((err) => toast.error('Request failed', getErrorMessage(err)))
-    }, 1000)
-    return () => window.clearInterval(timer)
-  }, [job, selectedVideoId, loadClips, loadCandidates])
+  const handleJobUpdate = useCallback(
+    async (next: Job) => {
+      setJob(next)
+      if (next.status === 'completed' && selectedVideoId) {
+        if (next.job_type === 'render') {
+          toast.success('Render complete', 'Clip exported with crop/thumbnail.')
+          await loadClips(selectedVideoId)
+        }
+        if (next.job_type === 'detect') {
+          setDetecting(false)
+          toast.success('Detection finished', next.message || undefined)
+          await loadCandidates(selectedVideoId)
+        }
+      }
+      if (next.status === 'failed') {
+        setDetecting(false)
+        toast.error('Job failed', next.error_message || undefined)
+        if (selectedVideoId) {
+          await loadClips(selectedVideoId)
+          await loadCandidates(selectedVideoId)
+        }
+      }
+    },
+    [selectedVideoId, loadClips, loadCandidates, toast],
+  )
+
+  useJobPolling(job, {
+    onUpdate: (next) => {
+      void handleJobUpdate(next)
+    },
+    onError: (message) => toast.error('Request failed', message),
+  })
 
   function applyStart(value: number) {
     const next = Math.max(0, Math.min(value, end - 0.5))
@@ -260,7 +262,7 @@ export function Editor() {
     setCurrentTime(clip.start_time)
   }
 
-  function useCandidate(candidate: DetectionCandidate) {
+  function applyCandidate(candidate: DetectionCandidate) {
     setSelectedCandidateId(candidate.id)
     setStart(candidate.start_time)
     setEnd(candidate.end_time)
@@ -313,7 +315,7 @@ export function Editor() {
   ) {
     const updated = await updateCandidate(candidate.id, changes)
     setCandidates((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
-    if (selectedCandidateId === candidate.id) useCandidate(updated)
+    if (selectedCandidateId === candidate.id) applyCandidate(updated)
   }
 
   async function handleDeleteClip(clip: Clip) {
@@ -404,7 +406,7 @@ export function Editor() {
                   setSeekTo(value)
                   setCurrentTime(value)
                 }}
-                onSelectCandidate={useCandidate}
+                onSelectCandidate={applyCandidate}
               />
             </div>
 
@@ -414,7 +416,7 @@ export function Editor() {
               detecting={detecting}
               selectedCandidateId={selectedCandidateId}
               onDetect={() => void handleDetect()}
-              onUse={useCandidate}
+              onUse={applyCandidate}
               onPromote={(c) => void handlePromoteCandidate(c)}
               onDelete={(c) => void handleDeleteCandidate(c)}
               onSaveEdit={handleSaveCandidateEdit}

@@ -52,11 +52,11 @@ export function Schedule() {
     try {
       const [scheduleItems, clipItems, status] = await Promise.all([
         fetchSchedules(filter === 'all' ? undefined : filter),
-        fetchClips(undefined, { status: 'ready' }),
+        fetchClips(undefined, { status: 'ready', review_status: 'approved' }),
         fetchYouTubeStatus(),
       ])
       setSchedules(scheduleItems)
-      setClips(clipItems.filter((c) => c.review_status !== 'rejected'))
+      setClips(clipItems)
       setYt(status)
     } catch (err) {
       toast.error('Could not load schedules', getErrorMessage(err))
@@ -115,8 +115,8 @@ export function Schedule() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Scheduled</h1>
           <p className="mt-1 text-sm text-muted">
-            Queue rendered clips for YouTube Shorts. Times are stored in UTC; display uses your
-            local timezone ({timezone}).
+            Queue approved, rendered clips for YouTube Shorts. Times are stored in UTC; display
+            uses your local timezone ({timezone}).
           </p>
         </div>
         <Link to="/settings" className="text-sm text-primary hover:underline">
@@ -156,11 +156,11 @@ export function Schedule() {
           <Select
             label="Rendered clip"
             value={clipId}
-            placeholder="Select ready clip"
+            placeholder="Select approved clip"
             options={
               clipOptions.length
                 ? clipOptions
-                : [{ value: '', label: 'No ready clips', disabled: true }]
+                : [{ value: '', label: 'No approved ready clips', disabled: true }]
             }
             onChange={(value) => {
               setClipId(value)

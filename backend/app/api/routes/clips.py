@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -7,6 +7,7 @@ from app.schemas.clip import ClipCreate, ClipListResponse, ClipRead, ClipUpdate
 from app.schemas.job import JobRead
 from app.services import clip_service
 from app.services.clip_service import ClipServiceError
+from app.utils.streaming import range_file_response
 
 router = APIRouter(prefix="/api", tags=["clips"])
 
@@ -69,17 +70,17 @@ def render_clip(clip_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/clips/{clip_id}/stream")
-def stream_clip(clip_id: int, db: Session = Depends(get_db)):
+def stream_clip(clip_id: int, request: Request, db: Session = Depends(get_db)):
     try:
         path = clip_service.get_clip_output_path(db, clip_id)
     except ClipServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
-    return FileResponse(
+    return range_file_response(
         path,
+        request,
         media_type="video/mp4",
         filename=path.name,
-        headers={"Accept-Ranges": "bytes"},
     )
 
 

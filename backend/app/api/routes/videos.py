@@ -1,13 +1,11 @@
-from pathlib import Path
-
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.schemas.video import DashboardStats, VideoListResponse, VideoRead
 from app.services import video_service
 from app.services.video_service import VideoServiceError
+from app.utils.streaming import range_file_response
 
 router = APIRouter(prefix="/api", tags=["videos"])
 
@@ -50,7 +48,7 @@ def delete_video(video_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/videos/{video_id}/stream")
-def stream_video(video_id: int, db: Session = Depends(get_db)):
+def stream_video(video_id: int, request: Request, db: Session = Depends(get_db)):
     try:
         path = video_service.get_video_path(db, video_id)
     except VideoServiceError as exc:
@@ -65,11 +63,11 @@ def stream_video(video_id: int, db: Session = Depends(get_db)):
     elif suffix == ".mkv":
         media_type = "video/x-matroska"
 
-    return FileResponse(
+    return range_file_response(
         path,
+        request,
         media_type=media_type,
         filename=path.name,
-        headers={"Accept-Ranges": "bytes"},
     )
 
 

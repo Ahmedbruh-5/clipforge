@@ -1,1 +1,4 @@
-"""Upload helpers live under videos.py for Phase 1–2."""
+"""Upload routes live under videos.py (POST /api/videos/upload).
+
+Kept as a module placeholder so the documented folder layout stays stable.
+"""

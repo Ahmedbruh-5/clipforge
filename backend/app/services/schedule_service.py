@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal
+from app.core import database
 from app.models.clip import Clip
 from app.models.job import Job
 from app.models.schedule import PublishSchedule
@@ -105,8 +105,12 @@ def create_schedule(db: Session, clip_id: int, payload: ScheduleCreate) -> dict:
             "Clip must be rendered (status=ready) before scheduling upload",
             status_code=400,
         )
-    if getattr(clip, "review_status", "pending") == "rejected":
-        raise ScheduleServiceError("Rejected clips cannot be scheduled", status_code=400)
+    review = getattr(clip, "review_status", "pending") or "pending"
+    if review != "approved":
+        raise ScheduleServiceError(
+            "Only approved clips can be scheduled. Approve the clip in Clip Review first.",
+            status_code=400,
+        )
 
     if not youtube_service.oauth_configured():
         raise ScheduleServiceError(
@@ -210,6 +214,12 @@ def retry_schedule(db: Session, schedule_id: int) -> dict:
     clip = db.get(Clip, schedule.clip_id)
     if not clip or clip.status != "ready" or not clip.output_path:
         raise ScheduleServiceError("Rendered clip is not available for retry", status_code=400)
+    review = getattr(clip, "review_status", "pending") or "pending"
+    if review != "approved":
+        raise ScheduleServiceError(
+            "Only approved clips can be retried for upload",
+            status_code=400,
+        )
 
     schedule.status = "queued"
     schedule.error_message = None
@@ -237,7 +247,7 @@ def retry_schedule(db: Session, schedule_id: int) -> dict:
 
 
 def _run_upload_job(job_id: int, schedule_id: int) -> None:
-    db = SessionLocal()
+    db = database.SessionLocal()
     try:
         job = db.get(Job, job_id)
         schedule = db.get(PublishSchedule, schedule_id)

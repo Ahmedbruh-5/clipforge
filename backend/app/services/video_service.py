@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.engine.processor import read_media_metadata
 from app.models.candidate import DetectionCandidate
 from app.models.clip import Clip
+from app.models.schedule import PublishSchedule
 from app.models.video import Video
 from app.services import schedule_service
 from app.utils.ffmpeg import FFmpegError
@@ -172,6 +173,11 @@ def delete_video(db: Session, video_id: int) -> None:
 
     clips = db.scalars(select(Clip).where(Clip.video_id == video_id)).all()
     for clip in clips:
+        schedules = db.scalars(
+            select(PublishSchedule).where(PublishSchedule.clip_id == clip.id)
+        ).all()
+        for schedule in schedules:
+            db.delete(schedule)
         if clip.output_path:
             Path(clip.output_path).unlink(missing_ok=True)
         if clip.thumbnail_path:

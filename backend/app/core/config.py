@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
 
+    # Default: local SQLite. Override with DATABASE_URL for PostgreSQL later, e.g.
+    # postgresql+psycopg://clipforge:clipforge@localhost:5432/clipforge
     database_url: str = f"sqlite:///{PROJECT_ROOT / 'database' / 'clipforge.db'}"
     storage_dir: str = str(PROJECT_ROOT / "storage")
     max_upload_bytes: int = 2 * 1024 * 1024 * 1024  # 2GB
