@@ -276,6 +276,10 @@ export function Editor() {
   }
 
   async function handlePromoteCandidate(candidate: DetectionCandidate) {
+    if (candidate.promoted) {
+      toast.info('Already promoted', `This candidate is already clip #${candidate.promoted_clip_id}.`)
+      return
+    }
     try {
       const clip = await promoteCandidate(candidate.id, {
         title: `Candidate #${candidate.rank}`,
@@ -285,8 +289,15 @@ export function Editor() {
         crop_y: cropY,
       })
       setClips((prev) => [clip, ...prev])
+      setCandidates((prev) =>
+        prev.map((c) =>
+          c.id === candidate.id
+            ? { ...c, promoted: true, promoted_clip_id: clip.id }
+            : c,
+        ),
+      )
       loadClipIntoEditor(clip)
-      toast.success('Candidate promoted', `Clip #${clip.id} created.`)
+      toast.success('Candidate promoted', `Clip #${clip.id} created and flagged.`)
     } catch (err) {
       toast.error('Action failed', getErrorMessage(err))
     }

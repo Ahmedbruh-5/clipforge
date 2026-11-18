@@ -51,6 +51,8 @@ class CandidateRead(BaseModel):
     rank: int
     label: str
     notes: str | None = None
+    promoted: bool = False
+    promoted_clip_id: int | None = None
     created_at: datetime
 
 

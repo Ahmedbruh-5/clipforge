@@ -184,6 +184,10 @@ export async function createSchedule(
 }
 
 export async function cancelSchedule(id: number): Promise<void> {
+  await api.post(`/schedules/${id}/cancel`)
+}
+
+export async function deleteSchedule(id: number): Promise<void> {
   await api.delete(`/schedules/${id}`)
 }
 

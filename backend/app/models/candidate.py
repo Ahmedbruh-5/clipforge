@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -23,6 +23,8 @@ class DetectionCandidate(Base):
     rank: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     label: Mapped[str] = mapped_column(String(128), nullable=False, default="candidate")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    promoted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    promoted_clip_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     video = relationship("Video", backref="candidates")

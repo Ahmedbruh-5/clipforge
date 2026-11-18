@@ -42,6 +42,8 @@ def _candidate_dict(c: DetectionCandidate) -> dict:
         "rank": c.rank,
         "label": c.label,
         "notes": c.notes,
+        "promoted": bool(getattr(c, "promoted", False)),
+        "promoted_clip_id": getattr(c, "promoted_clip_id", None),
         "created_at": c.created_at,
     }
 
@@ -108,6 +110,11 @@ def promote_candidate(db: Session, candidate_id: int, payload: CandidatePromote)
     candidate = db.get(DetectionCandidate, candidate_id)
     if not candidate:
         raise DetectionServiceError("Candidate not found", status_code=404)
+    if getattr(candidate, "promoted", False) and candidate.promoted_clip_id:
+        raise DetectionServiceError(
+            f"Candidate already promoted to clip #{candidate.promoted_clip_id}",
+            status_code=409,
+        )
 
     video = db.get(Video, candidate.video_id)
     if not video:
@@ -128,6 +135,9 @@ def promote_candidate(db: Session, candidate_id: int, payload: CandidatePromote)
         crop_y=payload.crop_y,
     )
     db.add(clip)
+    db.flush()
+    candidate.promoted = True
+    candidate.promoted_clip_id = clip.id
     db.commit()
     db.refresh(clip)
     return _clip_to_dict(clip, video)

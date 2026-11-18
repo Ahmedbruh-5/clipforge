@@ -8,6 +8,7 @@ import { useToast } from '../components/common/ToastProvider'
 import {
   cancelSchedule,
   createSchedule,
+  deleteSchedule,
   fetchClips,
   fetchSchedules,
   fetchYouTubeStatus,
@@ -15,7 +16,7 @@ import {
   retrySchedule,
 } from '../services/api'
 import type { Clip, PublishSchedule, YouTubeStatus } from '../types'
-import { formatDuration } from '../utils/format'
+import { formatDateTime12h, formatDuration } from '../utils/format'
 
 function toUtcIsoFromLocalInput(value: string): string | null {
   if (!value) return null
@@ -26,9 +27,7 @@ function toUtcIsoFromLocalInput(value: string): string | null {
 
 function formatUtc(value: string | null): string {
   if (!value) return 'Immediate / no publishAt'
-  const date = new Date(value.endsWith('Z') || value.includes('+') ? value : `${value}Z`)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  return formatDateTime12h(value)
 }
 
 export function Schedule() {
@@ -309,7 +308,7 @@ export function Schedule() {
                           <RefreshCw size={12} /> Retry
                         </button>
                       )}
-                      {item.status !== 'uploading' && item.status !== 'cancelled' && (
+                      {(item.status === 'queued' || item.status === 'scheduled') && (
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs text-muted hover:border-danger hover:text-danger"
@@ -317,7 +316,8 @@ export function Schedule() {
                             void toast
                               .confirm({
                                 title: 'Cancel schedule?',
-                                description: `Schedule #${item.id} will be marked cancelled.`,
+                                description:
+                                  'This marks it cancelled in ClipForge. It does not delete the YouTube video if it already uploaded.',
                                 confirmLabel: 'Cancel schedule',
                                 tone: 'danger',
                               })
@@ -333,7 +333,38 @@ export function Schedule() {
                               })
                           }
                         >
-                          <Trash2 size={12} /> Cancel
+                          Cancel
+                        </button>
+                      )}
+                      {(item.status === 'cancelled' ||
+                        item.status === 'failed' ||
+                        item.status === 'published' ||
+                        item.status === 'scheduled') && (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs text-muted hover:border-danger hover:text-danger"
+                          onClick={() =>
+                            void toast
+                              .confirm({
+                                title: 'Remove from list?',
+                                description:
+                                  'Deletes this schedule record in ClipForge only. Your local clip and any YouTube upload stay as they are.',
+                                confirmLabel: 'Delete',
+                                tone: 'danger',
+                              })
+                              .then(async (ok) => {
+                                if (!ok) return
+                                try {
+                                  await deleteSchedule(item.id)
+                                  toast.success('Removed from schedule list')
+                                  await load()
+                                } catch (err) {
+                                  toast.error('Delete failed', getErrorMessage(err))
+                                }
+                              })
+                          }
+                        >
+                          <Trash2 size={12} /> Delete
                         </button>
                       )}
                       {item.video_id && (
@@ -346,7 +377,7 @@ export function Schedule() {
                       )}
                     </div>
                     <p className="mt-2 font-mono text-[10px] text-muted">
-                      #{item.id} · {new Date(item.created_at).toLocaleString()}
+                      #{item.id} · {formatDateTime12h(item.created_at)}
                     </p>
                   </div>
                 </article>

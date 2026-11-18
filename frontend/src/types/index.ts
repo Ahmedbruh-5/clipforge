@@ -54,6 +54,8 @@ export interface DetectionCandidate {
   rank: number
   label: string
   notes: string | null
+  promoted: boolean
+  promoted_clip_id: number | null
   created_at: string
 }
 

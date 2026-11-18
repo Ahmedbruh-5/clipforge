@@ -11,6 +11,29 @@ export function formatBytes(bytes: number): string {
   return `${bytes} B`
 }
 
+/** Local date/time in 12-hour clock, e.g. 18 Nov 2026, 5:09 PM */
+export function formatDateTime12h(value: string | Date | null | undefined): string {
+  if (value == null || value === '') return '—'
+  const date =
+    value instanceof Date
+      ? value
+      : new Date(
+          typeof value === 'string' &&
+            !(value.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(value))
+            ? `${value}Z`
+            : value,
+        )
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
 export function formatDuration(seconds: number | null | undefined): string {
   if (seconds == null || Number.isNaN(seconds)) return '—'
   const total = Math.max(0, Math.floor(seconds))

@@ -60,24 +60,42 @@ def _ensure_sqlite_columns() -> None:
     if not db_url.startswith("sqlite"):
         return
     inspector = inspect(engine)
-    if "clips" not in inspector.get_table_names():
-        return
-    existing = {col["name"] for col in inspector.get_columns("clips")}
+    tables = inspector.get_table_names()
     with engine.begin() as conn:
-        if "review_status" not in existing:
-            conn.execute(
-                text(
-                    "ALTER TABLE clips ADD COLUMN review_status VARCHAR(32) "
-                    "NOT NULL DEFAULT 'pending'"
+        if "clips" in tables:
+            existing = {col["name"] for col in inspector.get_columns("clips")}
+            if "review_status" not in existing:
+                conn.execute(
+                    text(
+                        "ALTER TABLE clips ADD COLUMN review_status VARCHAR(32) "
+                        "NOT NULL DEFAULT 'pending'"
+                    )
                 )
-            )
-        if "thumbnail_custom" not in existing:
-            conn.execute(
-                text(
-                    "ALTER TABLE clips ADD COLUMN thumbnail_custom BOOLEAN "
-                    "NOT NULL DEFAULT 0"
+            if "thumbnail_custom" not in existing:
+                conn.execute(
+                    text(
+                        "ALTER TABLE clips ADD COLUMN thumbnail_custom BOOLEAN "
+                        "NOT NULL DEFAULT 0"
+                    )
                 )
-            )
+        if "detection_candidates" in tables:
+            cand_cols = {
+                col["name"] for col in inspector.get_columns("detection_candidates")
+            }
+            if "promoted" not in cand_cols:
+                conn.execute(
+                    text(
+                        "ALTER TABLE detection_candidates ADD COLUMN promoted "
+                        "BOOLEAN NOT NULL DEFAULT 0"
+                    )
+                )
+            if "promoted_clip_id" not in cand_cols:
+                conn.execute(
+                    text(
+                        "ALTER TABLE detection_candidates ADD COLUMN "
+                        "promoted_clip_id INTEGER"
+                    )
+                )
 
 
 def init_db() -> None:

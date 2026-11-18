@@ -213,21 +213,28 @@ export function TimelineSelector({
           const right = toPct(candidate.end_time)
           if (right < 0 || left > 100) return null
           const active = candidate.id === selectedCandidateId
+          const promoted = Boolean(candidate.promoted)
           return (
             <button
               key={`cand-${candidate.id}`}
               type="button"
               className={[
                 'absolute bottom-1 h-2 rounded-sm border',
-                active
-                  ? 'border-primary bg-primary/50'
-                  : 'border-amber-400/50 bg-amber-400/25 hover:bg-amber-400/40',
+                promoted
+                  ? 'border-accent/70 bg-accent/45'
+                  : active
+                    ? 'border-primary bg-primary/50'
+                    : 'border-amber-400/50 bg-amber-400/25 hover:bg-amber-400/40',
               ].join(' ')}
               style={{
                 left: `${clamp(left, 0, 100)}%`,
                 width: `${clamp(right - left, 0.4, 100)}%`,
               }}
-              title={`#${candidate.rank} ${(candidate.score * 100).toFixed(0)}`}
+              title={
+                promoted
+                  ? `#${candidate.rank} promoted → clip #${candidate.promoted_clip_id}`
+                  : `#${candidate.rank} ${(candidate.score * 100).toFixed(0)}`
+              }
               onClick={(e) => {
                 e.stopPropagation()
                 onSelectCandidate?.(candidate)

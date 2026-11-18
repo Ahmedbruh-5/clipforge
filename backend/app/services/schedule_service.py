@@ -194,14 +194,43 @@ def create_schedule(db: Session, clip_id: int, payload: ScheduleCreate) -> dict:
     return _schedule_dict(schedule, clip)
 
 
-def delete_schedule(db: Session, schedule_id: int) -> None:
+def cancel_schedule(db: Session, schedule_id: int) -> None:
+    """Soft-cancel an active schedule (keeps the row for history / retry)."""
     schedule = db.get(PublishSchedule, schedule_id)
     if not schedule:
         raise ScheduleServiceError("Schedule not found", status_code=404)
     if schedule.status == "uploading":
-        raise ScheduleServiceError("Cannot delete a schedule while uploading", status_code=400)
+        raise ScheduleServiceError("Cannot cancel while uploading", status_code=400)
+    if schedule.status in {"cancelled", "published", "failed"}:
+        raise ScheduleServiceError(
+            f"Schedule is already {schedule.status}; use Delete to remove it from the list",
+            status_code=400,
+        )
     schedule.status = "cancelled"
     db.commit()
+
+
+def delete_schedule(db: Session, schedule_id: int) -> None:
+    """
+    Permanently remove a schedule row from ClipForge.
+
+    Does not delete the YouTube video or the local clip — only the schedule record.
+    """
+    schedule = db.get(PublishSchedule, schedule_id)
+    if not schedule:
+        raise ScheduleServiceError("Schedule not found", status_code=404)
+    if schedule.status in {"uploading", "queued"}:
+        raise ScheduleServiceError(
+            "Cannot delete while upload is in progress; wait or cancel first",
+            status_code=400,
+        )
+    db.delete(schedule)
+    db.commit()
+
+
+# Backwards-compatible alias used by older call sites
+def soft_cancel_schedule(db: Session, schedule_id: int) -> None:
+    cancel_schedule(db, schedule_id)
 
 
 def retry_schedule(db: Session, schedule_id: int) -> dict:

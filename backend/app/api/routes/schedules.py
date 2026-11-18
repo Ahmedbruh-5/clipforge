@@ -86,8 +86,17 @@ def get_schedule(schedule_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
+@router.post("/schedules/{schedule_id}/cancel", status_code=204)
+def cancel_schedule(schedule_id: int, db: Session = Depends(get_db)):
+    try:
+        schedule_service.cancel_schedule(db, schedule_id)
+    except ScheduleServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
 @router.delete("/schedules/{schedule_id}", status_code=204)
 def delete_schedule(schedule_id: int, db: Session = Depends(get_db)):
+    """Remove the schedule row from ClipForge (not the YouTube video / local clip)."""
     try:
         schedule_service.delete_schedule(db, schedule_id)
     except ScheduleServiceError as exc:

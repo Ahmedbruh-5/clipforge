@@ -1,4 +1,4 @@
-import { Check, Pencil, Sparkles, Trash2, X } from 'lucide-react'
+import { Check, Flag, Pencil, Sparkles, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 
 import type { DetectionCandidate } from '../../types'
@@ -97,12 +97,17 @@ export function CandidateList({
           candidates.map((candidate) => {
             const selected = candidate.id === selectedCandidateId
             const editing = editingId === candidate.id
+            const promoted = Boolean(candidate.promoted)
             return (
               <div
                 key={candidate.id}
                 className={[
                   'rounded-md border bg-bg-secondary p-3',
-                  selected ? 'border-primary' : 'border-border',
+                  promoted
+                    ? 'border-accent/50'
+                    : selected
+                      ? 'border-primary'
+                      : 'border-border',
                 ].join(' ')}
               >
                 {editing ? (
@@ -149,8 +154,19 @@ export function CandidateList({
                   <>
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="text-sm font-medium">
-                          #{candidate.rank} · {candidate.label}
+                        <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                          <span>
+                            #{candidate.rank} · {candidate.label}
+                          </span>
+                          {promoted && (
+                            <span className="inline-flex items-center gap-1 rounded border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
+                              <Flag size={10} />
+                              Promoted
+                              {candidate.promoted_clip_id
+                                ? ` · clip #${candidate.promoted_clip_id}`
+                                : ''}
+                            </span>
+                          )}
                         </div>
                         <div className="mt-1 font-mono text-xs text-muted">
                           {formatTimestamp(candidate.start_time)} →{' '}
@@ -180,10 +196,21 @@ export function CandidateList({
                       </button>
                       <button
                         type="button"
-                        className="rounded border border-border px-2 py-1 text-xs hover:border-accent"
+                        disabled={promoted}
+                        className={[
+                          'rounded border px-2 py-1 text-xs',
+                          promoted
+                            ? 'cursor-not-allowed border-accent/30 text-accent/70'
+                            : 'border-border hover:border-accent',
+                        ].join(' ')}
                         onClick={() => onPromote(candidate)}
+                        title={
+                          promoted
+                            ? 'Already promoted — open the clip from the list below'
+                            : 'Save this candidate as a clip'
+                        }
                       >
-                        Promote to clip
+                        {promoted ? 'Already promoted' : 'Promote to clip'}
                       </button>
                       <button
                         type="button"

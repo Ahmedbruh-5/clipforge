@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     youtube_redirect_uri: str = "http://127.0.0.1:8000/api/youtube/callback"
     youtube_token_path: str = str(PROJECT_ROOT / "storage" / "secrets" / "youtube_token.json")
 
+    def model_post_init(self, __context: object) -> None:
+        # Avoid invisible whitespace from pasted Cloud Console values
+        object.__setattr__(self, "google_client_id", self.google_client_id.strip())
+        object.__setattr__(self, "google_client_secret", self.google_client_secret.strip())
+        object.__setattr__(self, "youtube_redirect_uri", self.youtube_redirect_uri.strip())
+
     @property
     def resolved_database_url(self) -> str:
         url = self.database_url
