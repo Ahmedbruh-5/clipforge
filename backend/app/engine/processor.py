@@ -22,6 +22,9 @@ def process_clip_render(
     resolution: str = "1080x1920",
     crop_x: float = 0.5,
     crop_y: float = 0.5,
+    audio_mode: str = "original",
+    music_path: Path | None = None,
+    music_volume: float = 1.0,
 ) -> tuple[Path, CropRect | None]:
     crop = None
     video_filter = None
@@ -43,6 +46,9 @@ def process_clip_render(
         start_time,
         end_time,
         video_filter=video_filter,
+        audio_mode=audio_mode,
+        music_path=music_path,
+        music_volume=music_volume,
     )
     return output_path, crop
 

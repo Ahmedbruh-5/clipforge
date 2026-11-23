@@ -6,6 +6,7 @@ import type {
   DashboardStats,
   DetectionCandidate,
   Job,
+  MusicTrack,
   PublishSchedule,
   ScheduleCreatePayload,
   Video,
@@ -105,10 +106,31 @@ export async function promoteCandidate(
     resolution?: string
     crop_x?: number
     crop_y?: number
+    audio_mode?: string
+    music_track_key?: string | null
+    music_volume?: number
   },
 ): Promise<Clip> {
   const { data } = await api.post<Clip>(`/candidates/${id}/promote`, payload ?? {})
   return data
+}
+
+export async function fetchMusicTracks(): Promise<MusicTrack[]> {
+  const { data } = await api.get<{ items: MusicTrack[]; total: number }>('/music/tracks')
+  return data.items
+}
+
+export async function uploadMusicTrack(file: File): Promise<MusicTrack> {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await api.post<MusicTrack>('/music/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return data
+}
+
+export async function deleteMusicTrack(filename: string): Promise<void> {
+  await api.delete(`/music/user/${encodeURIComponent(filename)}`)
 }
 
 export async function deleteClip(id: number): Promise<void> {

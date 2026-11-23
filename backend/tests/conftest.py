@@ -16,7 +16,7 @@ if str(BACKEND_ROOT) not in sys.path:
 def client(tmp_path, monkeypatch):
     db_path = tmp_path / "test.db"
     storage = tmp_path / "storage"
-    for name in ("originals", "processed", "thumbnails", "temp", "secrets"):
+    for name in ("originals", "processed", "thumbnails", "temp", "secrets", "music/user"):
         (storage / name).mkdir(parents=True)
 
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_path}")
@@ -39,12 +39,14 @@ def client(tmp_path, monkeypatch):
     import app.main as main_module
     import app.services.clip_service as clip_service
     import app.services.detection_service as detection_service
+    import app.services.music_service as music_service
     import app.services.video_service as video_service
 
     monkeypatch.setattr(main_module, "settings", fresh)
     monkeypatch.setattr(video_service, "settings", fresh)
     monkeypatch.setattr(clip_service, "settings", fresh)
     monkeypatch.setattr(detection_service, "settings", fresh)
+    monkeypatch.setattr(music_service, "settings", fresh)
     monkeypatch.setattr(schedules_routes, "settings", fresh)
 
     from app.main import app

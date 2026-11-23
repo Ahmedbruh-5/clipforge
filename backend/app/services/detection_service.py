@@ -120,7 +120,17 @@ def promote_candidate(db: Session, candidate_id: int, payload: CandidatePromote)
     if not video:
         raise DetectionServiceError("Source video not found", status_code=404)
 
+    from app.services.clip_service import ClipServiceError, _normalize_audio_fields
+
     title = (payload.title or "").strip() or f"Candidate #{candidate.rank}"
+    try:
+        audio_mode, music_track_key, music_volume = _normalize_audio_fields(
+            payload.audio_mode,
+            payload.music_track_key,
+            payload.music_volume,
+        )
+    except ClipServiceError as exc:
+        raise DetectionServiceError(exc.message, status_code=exc.status_code) from exc
     clip = Clip(
         video_id=candidate.video_id,
         title=title,
@@ -133,6 +143,9 @@ def promote_candidate(db: Session, candidate_id: int, payload: CandidatePromote)
         resolution=payload.resolution,
         crop_x=payload.crop_x,
         crop_y=payload.crop_y,
+        audio_mode=audio_mode,
+        music_track_key=music_track_key,
+        music_volume=music_volume,
     )
     db.add(clip)
     db.flush()

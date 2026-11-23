@@ -5,7 +5,11 @@ interface Props {
   onTimeUpdate?: (time: number) => void
   onLoadedMetadata?: (duration: number) => void
   currentTime?: number
+  muted?: boolean
   className?: string
+  onPlay?: () => void
+  onPause?: () => void
+  onSeeked?: (time: number) => void
 }
 
 export function VideoPlayer({
@@ -13,7 +17,11 @@ export function VideoPlayer({
   onTimeUpdate,
   onLoadedMetadata,
   currentTime,
+  muted = false,
   className,
+  onPlay,
+  onPause,
+  onSeeked,
 }: Props) {
   const ref = useRef<HTMLVideoElement>(null)
 
@@ -24,6 +32,12 @@ export function VideoPlayer({
       }
     }
   }, [currentTime])
+
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.muted = muted
+    }
+  }, [muted])
 
   if (!src) {
     return (
@@ -41,9 +55,13 @@ export function VideoPlayer({
       key={src}
       src={src}
       controls
+      muted={muted}
       className={`aspect-video w-full rounded-lg border border-border bg-black object-contain ${className ?? ''}`}
       onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
       onLoadedMetadata={(e) => onLoadedMetadata?.(e.currentTarget.duration)}
+      onPlay={() => onPlay?.()}
+      onPause={() => onPause?.()}
+      onSeeked={(e) => onSeeked?.(e.currentTarget.currentTime)}
     />
   )
 }

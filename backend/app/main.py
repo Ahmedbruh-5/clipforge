@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import clips, detection, schedules, videos
+from app.api.routes import clips, detection, music, schedules, videos
 from app.core.config import get_settings
 from app.core.database import init_db
 from app.core.errors import register_exception_handlers
@@ -54,6 +54,7 @@ app.include_router(videos.router)
 app.include_router(clips.router)
 app.include_router(detection.router)
 app.include_router(schedules.router)
+app.include_router(music.router)
 
 
 @app.get("/api/health")
@@ -82,5 +83,7 @@ def health():
             "approved_only_schedule",
             "job_recovery",
             "error_hardening",
+            "clip_audio_modes",
+            "music_library",
         ],
     }

@@ -78,6 +78,24 @@ def _ensure_sqlite_columns() -> None:
                         "NOT NULL DEFAULT 0"
                     )
                 )
+            if "audio_mode" not in existing:
+                conn.execute(
+                    text(
+                        "ALTER TABLE clips ADD COLUMN audio_mode VARCHAR(16) "
+                        "NOT NULL DEFAULT 'original'"
+                    )
+                )
+            if "music_track_key" not in existing:
+                conn.execute(
+                    text("ALTER TABLE clips ADD COLUMN music_track_key VARCHAR(255)")
+                )
+            if "music_volume" not in existing:
+                conn.execute(
+                    text(
+                        "ALTER TABLE clips ADD COLUMN music_volume FLOAT "
+                        "NOT NULL DEFAULT 1.0"
+                    )
+                )
         if "detection_candidates" in tables:
             cand_cols = {
                 col["name"] for col in inspector.get_columns("detection_candidates")

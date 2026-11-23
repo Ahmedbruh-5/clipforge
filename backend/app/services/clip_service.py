@@ -16,6 +16,7 @@ from app.models.clip import Clip
 from app.models.job import Job
 from app.models.video import Video
 from app.schemas.clip import ClipCreate, ClipUpdate
+from app.services import music_service
 from app.utils.ffmpeg import FFmpegError, convert_image_to_jpeg
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,12 @@ RENDER_INVALIDATING_FIELDS = {
     "resolution",
     "crop_x",
     "crop_y",
+    "audio_mode",
+    "music_track_key",
+    "music_volume",
 }
+
+AUDIO_MODES = {"original", "mute", "music"}
 
 
 class ClipServiceError(Exception):
@@ -65,6 +71,9 @@ def _clip_to_dict(clip: Clip, video: Video | None = None) -> dict:
         "resolution": clip.resolution,
         "crop_x": clip.crop_x,
         "crop_y": clip.crop_y,
+        "audio_mode": getattr(clip, "audio_mode", None) or "original",
+        "music_track_key": getattr(clip, "music_track_key", None),
+        "music_volume": float(getattr(clip, "music_volume", 1.0) or 1.0),
         "error_message": clip.error_message,
         "created_at": clip.created_at,
         "updated_at": clip.updated_at,
@@ -72,6 +81,31 @@ def _clip_to_dict(clip: Clip, video: Video | None = None) -> dict:
         "thumbnail_url": thumbnail_url,
         "video_title": video.original_filename if video else None,
     }
+
+
+def _normalize_audio_fields(
+    audio_mode: str | None,
+    music_track_key: str | None,
+    music_volume: float | None,
+    *,
+    require_track: bool = True,
+) -> tuple[str, str | None, float]:
+    mode = (audio_mode or "original").strip().lower()
+    if mode not in AUDIO_MODES:
+        raise ClipServiceError(
+            f"audio_mode must be one of: {', '.join(sorted(AUDIO_MODES))}"
+        )
+    volume = 1.0 if music_volume is None else float(music_volume)
+    volume = max(0.0, min(volume, 2.0))
+    key = (music_track_key or "").strip() or None
+    if mode == "music":
+        if require_track and not key:
+            raise ClipServiceError("music_track_key is required when audio_mode=music")
+        if key and music_service.resolve_track_path(key) is None:
+            raise ClipServiceError(f"Music track not found: {key}", status_code=404)
+    else:
+        key = None
+    return mode, key, volume
 
 
 def create_clip(db: Session, payload: ClipCreate) -> dict:
@@ -83,6 +117,12 @@ def create_clip(db: Session, payload: ClipCreate) -> dict:
         raise ClipServiceError(
             f"end_time exceeds video duration ({video.duration:.2f}s)"
         )
+
+    audio_mode, music_track_key, music_volume = _normalize_audio_fields(
+        payload.audio_mode,
+        payload.music_track_key,
+        payload.music_volume,
+    )
 
     clip = Clip(
         video_id=payload.video_id,
@@ -96,6 +136,9 @@ def create_clip(db: Session, payload: ClipCreate) -> dict:
         resolution=payload.resolution,
         crop_x=payload.crop_x,
         crop_y=payload.crop_y,
+        audio_mode=audio_mode,
+        music_track_key=music_track_key,
+        music_volume=music_volume,
     )
     db.add(clip)
     db.commit()
@@ -174,6 +217,28 @@ def update_clip(db: Session, clip_id: int, payload: ClipUpdate) -> dict:
                 f"review_status must be one of: {', '.join(sorted(allowed))}"
             )
         clip.review_status = data["review_status"]
+
+    if any(k in data for k in ("audio_mode", "music_track_key", "music_volume")):
+        next_mode = data.get(
+            "audio_mode", getattr(clip, "audio_mode", None) or "original"
+        )
+        next_key = data.get(
+            "music_track_key", getattr(clip, "music_track_key", None)
+        )
+        next_vol = data.get(
+            "music_volume", float(getattr(clip, "music_volume", 1.0) or 1.0)
+        )
+        # If client clears track while staying on music, require a key
+        if "music_track_key" in data and data["music_track_key"] is None:
+            next_key = None
+        audio_mode, music_track_key, music_volume = _normalize_audio_fields(
+            next_mode,
+            next_key,
+            next_vol,
+        )
+        clip.audio_mode = audio_mode
+        clip.music_track_key = music_track_key
+        clip.music_volume = music_volume
 
     if RENDER_INVALIDATING_FIELDS & data.keys():
         if clip.output_path:
@@ -340,8 +405,27 @@ def _run_render_job(job_id: int, clip_id: int) -> None:
         settings.processed_dir.mkdir(parents=True, exist_ok=True)
         settings.thumbnails_dir.mkdir(parents=True, exist_ok=True)
 
+        audio_mode = getattr(clip, "audio_mode", None) or "original"
+        music_track_key = getattr(clip, "music_track_key", None)
+        music_volume = float(getattr(clip, "music_volume", 1.0) or 1.0)
+        music_path = None
+        if audio_mode == "music":
+            music_path = music_service.resolve_track_path(music_track_key)
+            if music_path is None:
+                raise FFmpegError(
+                    f"Music track not found: {music_track_key or '(none)'}"
+                )
+
         job.progress = 35
-        job.message = "Cropping and encoding clip"
+        job.message = (
+            "Cropping and encoding clip (muted)"
+            if audio_mode == "mute"
+            else (
+                "Cropping and encoding clip with music"
+                if audio_mode == "music"
+                else "Cropping and encoding clip"
+            )
+        )
         db.commit()
 
         process_clip_render(
@@ -355,6 +439,9 @@ def _run_render_job(job_id: int, clip_id: int) -> None:
             resolution=resolution,
             crop_x=crop_x,
             crop_y=crop_y,
+            audio_mode=audio_mode,
+            music_path=music_path,
+            music_volume=music_volume,
         )
 
         keep_custom_thumb = bool(getattr(clip, "thumbnail_custom", False)) and bool(
@@ -422,6 +509,13 @@ def start_render(db: Session, clip_id: int) -> dict:
     video = db.get(Video, clip.video_id)
     if not video:
         raise ClipServiceError("Source video not found", status_code=404)
+
+    # Validate audio settings before queueing so the UI gets a fast error
+    _normalize_audio_fields(
+        getattr(clip, "audio_mode", None) or "original",
+        getattr(clip, "music_track_key", None),
+        float(getattr(clip, "music_volume", 1.0) or 1.0),
+    )
 
     job = Job(
         job_type="render",

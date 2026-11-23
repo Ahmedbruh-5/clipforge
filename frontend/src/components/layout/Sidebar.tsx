@@ -45,7 +45,8 @@ export function Sidebar() {
         ))}
       </nav>
       <div className="border-t border-border px-4 py-3 text-xs text-muted">
-        Phase 7 · Hardened local studio
+        <div>Phase 7 · Hardened local studio</div>
+        <div className="mt-1">Made by Ahmed</div>
       </div>
     </aside>
   )

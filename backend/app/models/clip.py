@@ -26,6 +26,10 @@ class Clip(Base):
     resolution: Mapped[str] = mapped_column(String(32), nullable=False, default="source")
     crop_x: Mapped[float | None] = mapped_column(Float, nullable=True)
     crop_y: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # original | mute | music
+    audio_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="original")
+    music_track_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    music_volume: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

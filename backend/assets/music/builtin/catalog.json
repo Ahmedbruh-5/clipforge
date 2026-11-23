@@ -1,0 +1,58 @@
+{
+  "tracks": [
+    {
+      "id": "frog_in_the_well",
+      "title": "Frog in the Well",
+      "artist": "Lucas Gonze",
+      "filename": "frog_in_the_well.mp3",
+      "duration": 45.0,
+      "license": "CC0-1.0 / Public Domain",
+      "attribution": "Lucas Gonze — Frog in the Well (Ghost Solos). Public domain via Internet Archive. https://archive.org/details/Ghost_Solos-7799"
+    },
+    {
+      "id": "death_valley_waltz",
+      "title": "Death Valley Waltz",
+      "artist": "Lucas Gonze",
+      "filename": "death_valley_waltz.mp3",
+      "duration": 45.0,
+      "license": "CC0-1.0 / Public Domain",
+      "attribution": "Lucas Gonze — Death Valley Waltz (Ghost Solos). Public domain via Internet Archive. https://archive.org/details/Ghost_Solos-7799"
+    },
+    {
+      "id": "dodworth_five_step",
+      "title": "Dodworth Five Step",
+      "artist": "Lucas Gonze",
+      "filename": "dodworth_five_step.mp3",
+      "duration": 45.0,
+      "license": "CC0-1.0 / Public Domain",
+      "attribution": "Lucas Gonze — Dodworth's Five Step (Ghost Solos). Public domain via Internet Archive. https://archive.org/details/Ghost_Solos-7799"
+    },
+    {
+      "id": "goldberg_aria",
+      "title": "Goldberg Aria",
+      "artist": "Kimiko Ishizaka",
+      "filename": "goldberg_aria.mp3",
+      "duration": 45.0,
+      "license": "CC0-1.0",
+      "attribution": "Kimiko Ishizaka — Aria from The Open Goldberg Variations (CC0). https://archive.org/details/The_Open_Goldberg_Variations-11823"
+    },
+    {
+      "id": "goldberg_variation_1",
+      "title": "Goldberg Variation 1",
+      "artist": "Kimiko Ishizaka",
+      "filename": "goldberg_variation_1.mp3",
+      "duration": 40.0,
+      "license": "CC0-1.0",
+      "attribution": "Kimiko Ishizaka — Variatio 1 from The Open Goldberg Variations (CC0). https://archive.org/details/The_Open_Goldberg_Variations-11823"
+    },
+    {
+      "id": "goldberg_variation_7",
+      "title": "Goldberg Variation 7",
+      "artist": "Kimiko Ishizaka",
+      "filename": "goldberg_variation_7.mp3",
+      "duration": 40.0,
+      "license": "CC0-1.0",
+      "attribution": "Kimiko Ishizaka — Variatio 7 from The Open Goldberg Variations (CC0). https://archive.org/details/The_Open_Goldberg_Variations-11823"
+    }
+  ]
+}

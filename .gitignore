@@ -14,25 +14,36 @@ frontend/dist/
 
 # Environment / secrets
 .env
+.env.*
+!.env.example
+!**/.env.example
 backend/.env
 *.pem
 credentials.json
 token.json
+**/youtube_token.json
+client_secret*.json
 
-# Storage & database
+# Storage & database (local user data — never commit)
 storage/originals/*
 storage/processed/*
 storage/thumbnails/*
 storage/temp/*
 storage/secrets/*
+storage/music/user/*
 !storage/**/.gitkeep
 !storage/secrets/.gitkeep
+!storage/music/user/.gitkeep
 database/*.db
 database/*.db-journal
+database/*.db-wal
+database/*.db-shm
 
-# IDE / OS
+# IDE / OS / local tooling
 .DS_Store
 .idea/
 .vscode/
 *.log
 .Thumbs.db
+.cursor/
+agent-transcripts/

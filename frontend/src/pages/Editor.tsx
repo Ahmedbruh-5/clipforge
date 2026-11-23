@@ -1,11 +1,12 @@
 import { LoaderCircle, Scissors, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { CandidateList } from '../components/clips/CandidateList'
 import { Select } from '../components/common/Select'
 import { StatusBadge } from '../components/common/StatusBadge'
 import { useToast } from '../components/common/ToastProvider'
+import { AudioControls } from '../components/editor/AudioControls'
 import { CropControls } from '../components/editor/CropControls'
 import { ThumbnailPicker } from '../components/editor/ThumbnailPicker'
 import { TimelineSelector } from '../components/editor/TimelineSelector'
@@ -16,8 +17,10 @@ import {
   createClip,
   deleteCandidate,
   deleteClip,
+  deleteMusicTrack,
   fetchCandidates,
   fetchClips,
+  fetchMusicTracks,
   fetchVideos,
   getErrorMessage,
   mediaUrl,
@@ -27,8 +30,9 @@ import {
   updateCandidate,
   updateClip,
   uploadClipThumbnail,
+  uploadMusicTrack,
 } from '../services/api'
-import type { Clip, DetectionCandidate, Job, Video } from '../types'
+import type { Clip, DetectionCandidate, Job, MusicTrack, Video } from '../types'
 import { formatDuration, formatTimestamp, parseTimestamp } from '../utils/format'
 
 export function Editor() {
@@ -49,6 +53,13 @@ export function Editor() {
   const [resolution, setResolution] = useState('1080x1920')
   const [cropX, setCropX] = useState(0.5)
   const [cropY, setCropY] = useState(0.5)
+  const [muteOriginal, setMuteOriginal] = useState(false)
+  const [addMusic, setAddMusic] = useState(false)
+  const [musicTrackKey, setMusicTrackKey] = useState<string | null>(null)
+  const [musicVolume, setMusicVolume] = useState(1)
+  const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([])
+  const [musicUploading, setMusicUploading] = useState(false)
+
   const [currentTime, setCurrentTime] = useState(0)
   const [seekTo, setSeekTo] = useState<number | undefined>()
   const [editingClipId, setEditingClipId] = useState<number | null>(null)
@@ -57,6 +68,7 @@ export function Editor() {
   const [detecting, setDetecting] = useState(false)
   const [job, setJob] = useState<Job | null>(null)
   const clipFromQuery = Number(searchParams.get('clip') || 0) || null
+  const previewMusicRef = useRef<HTMLAudioElement | null>(null)
 
   const selectedVideo = useMemo(
     () => videos.find((v) => v.id === selectedVideoId) ?? null,
@@ -64,6 +76,20 @@ export function Editor() {
   )
 
   const duration = selectedVideo?.duration ?? 0
+  const previewMuted = muteOriginal || addMusic
+  const previewMusicSrc =
+    addMusic && musicTrackKey
+      ? `/api/music/file?key=${encodeURIComponent(musicTrackKey)}`
+      : undefined
+
+  useEffect(() => {
+    const audio = previewMusicRef.current
+    if (!audio) return
+    audio.volume = Math.max(0, Math.min(musicVolume, 1))
+    if (!previewMusicSrc) {
+      audio.pause()
+    }
+  }, [musicVolume, previewMusicSrc])
 
   const loadClips = useCallback(async (videoId: number) => {
     setClips(await fetchClips(videoId))
@@ -85,6 +111,24 @@ export function Editor() {
       })
       .catch((err) => toast.error('Request failed', getErrorMessage(err)))
   }, [selectedVideoId, setSearchParams])
+
+  const loadMusicTracks = useCallback(async () => {
+    const items = await fetchMusicTracks()
+    setMusicTracks(items)
+    return items
+  }, [])
+
+  useEffect(() => {
+    loadMusicTracks()
+      .then((items) => {
+        if (!musicTrackKey) {
+          const firstBuiltin = items.find((t) => t.source === 'builtin')
+          if (firstBuiltin) setMusicTrackKey(firstBuiltin.key)
+        }
+      })
+      .catch(() => setMusicTracks([]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadMusicTracks])
 
   useEffect(() => {
     if (!selectedVideoId) {
@@ -111,6 +155,9 @@ export function Editor() {
     setResolution('1080x1920')
     setCropX(0.5)
     setCropY(0.5)
+    setMuteOriginal(false)
+    setAddMusic(false)
+    setMusicVolume(1)
     setEditingClipId(null)
     setSelectedCandidateId(null)
     setCurrentTime(0)
@@ -188,10 +235,29 @@ export function Editor() {
     applyEnd(parsed)
   }
 
+  function audioPayload() {
+    const trackKey =
+      addMusic
+        ? musicTrackKey ||
+          musicTracks.find((t) => t.source === 'builtin')?.key ||
+          musicTracks[0]?.key ||
+          null
+        : null
+    return {
+      audio_mode: addMusic ? ('music' as const) : muteOriginal ? ('mute' as const) : ('original' as const),
+      music_track_key: trackKey,
+      music_volume: musicVolume,
+    }
+  }
+
   async function handleSaveClip() {
     if (!selectedVideoId) return
     setBusy(true)
     try {
+      if (addMusic && !musicTrackKey) {
+        toast.error('Pick a music track', 'Select a library track or upload one.')
+        return
+      }
       const payload = {
         title,
         start_time: start,
@@ -200,6 +266,7 @@ export function Editor() {
         resolution,
         crop_x: cropX,
         crop_y: cropY,
+        ...audioPayload(),
       }
       if (editingClipId) {
         const updated = await updateClip(editingClipId, payload)
@@ -223,14 +290,65 @@ export function Editor() {
 
   async function handleRender(clipId: number) {
     try {
+      const audio = audioPayload()
+      if (addMusic && !audio.music_track_key) {
+        toast.error('Pick a music track', 'Select a library track or upload one before export.')
+        return
+      }
+      if (audio.music_track_key && audio.music_track_key !== musicTrackKey) {
+        setMusicTrackKey(audio.music_track_key)
+      }
+      // Always write current audio panel onto the clip being exported
+      const payload =
+        editingClipId === clipId
+          ? {
+              title,
+              start_time: start,
+              end_time: end,
+              aspect_ratio: aspectRatio,
+              resolution,
+              crop_x: cropX,
+              crop_y: cropY,
+              ...audio,
+            }
+          : audio
+      const updated = await updateClip(clipId, payload)
+      setClips((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      if (editingClipId !== clipId) {
+        loadClipIntoEditor(updated)
+      }
+
       const started = await renderClip(clipId)
       setJob(started)
       setClips((prev) =>
         prev.map((c) => (c.id === clipId ? { ...c, status: 'rendering' } : c)),
       )
-      toast.info('Render started', 'Crop, encode, and thumbnail in progress.')
+      const audioHint =
+        audio.audio_mode === 'mute'
+          ? 'Original audio muted.'
+          : audio.audio_mode === 'music'
+            ? `Original muted + music (${audio.music_track_key}).`
+            : 'Keeping original audio.'
+      toast.info('Render started', audioHint)
     } catch (err) {
       toast.error('Action failed', getErrorMessage(err))
+    }
+  }
+
+  function syncPreviewMusic(action: 'play' | 'pause' | 'seek', time?: number) {
+    const audio = previewMusicRef.current
+    if (!audio || !previewMusicSrc) return
+    if (typeof time === 'number' && Number.isFinite(time)) {
+      try {
+        audio.currentTime = Math.max(0, time)
+      } catch {
+        /* ignore seek until metadata ready */
+      }
+    }
+    if (action === 'play') {
+      void audio.play().catch(() => undefined)
+    } else if (action === 'pause') {
+      audio.pause()
     }
   }
 
@@ -258,8 +376,49 @@ export function Editor() {
     setResolution(clip.resolution || '1080x1920')
     setCropX(clip.crop_x ?? 0.5)
     setCropY(clip.crop_y ?? 0.5)
+    setMuteOriginal(clip.audio_mode === 'mute' || clip.audio_mode === 'music')
+    setAddMusic(clip.audio_mode === 'music')
+    setMusicTrackKey(clip.music_track_key)
+    setMusicVolume(clip.music_volume ?? 1)
     setSeekTo(clip.start_time)
     setCurrentTime(clip.start_time)
+  }
+
+  async function handleMusicUpload(file: File) {
+    setMusicUploading(true)
+    try {
+      const track = await uploadMusicTrack(file)
+      await loadMusicTracks()
+      setMusicTrackKey(track.key)
+      setAddMusic(true)
+      setMuteOriginal(true)
+      toast.success('Music uploaded', track.title)
+    } catch (err) {
+      toast.error('Upload failed', getErrorMessage(err))
+    } finally {
+      setMusicUploading(false)
+    }
+  }
+
+  async function handleDeleteUserTrack(track: MusicTrack) {
+    const ok = await toast.confirm({
+      title: 'Delete uploaded track?',
+      description: `${track.title} will be removed from your music library.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    })
+    if (!ok) return
+    try {
+      await deleteMusicTrack(track.filename)
+      const items = await loadMusicTracks()
+      if (musicTrackKey === track.key) {
+        const fallback = items.find((t) => t.source === 'builtin') ?? items[0]
+        setMusicTrackKey(fallback?.key ?? null)
+      }
+      toast.success('Track deleted')
+    } catch (err) {
+      toast.error('Action failed', getErrorMessage(err))
+    }
   }
 
   function applyCandidate(candidate: DetectionCandidate) {
@@ -281,12 +440,17 @@ export function Editor() {
       return
     }
     try {
+      if (addMusic && !musicTrackKey) {
+        toast.error('Pick a music track', 'Select a library track before promoting.')
+        return
+      }
       const clip = await promoteCandidate(candidate.id, {
         title: `Candidate #${candidate.rank}`,
         aspect_ratio: aspectRatio,
         resolution,
         crop_x: cropX,
         crop_y: cropY,
+        ...audioPayload(),
       })
       setClips((prev) => [clip, ...prev])
       setCandidates((prev) =>
@@ -383,8 +547,33 @@ export function Editor() {
             <VideoPlayer
               src={mediaUrl(selectedVideo.stream_url)}
               currentTime={seekTo}
-              onTimeUpdate={setCurrentTime}
+              muted={previewMuted}
+              onTimeUpdate={(t) => {
+                setCurrentTime(t)
+                const audio = previewMusicRef.current
+                if (audio && previewMusicSrc && !audio.paused) {
+                  if (Math.abs(audio.currentTime - t) > 0.4) {
+                    try {
+                      audio.currentTime = Math.max(0, t)
+                    } catch {
+                      /* ignore */
+                    }
+                  }
+                }
+              }}
+              onPlay={() => syncPreviewMusic('play', currentTime)}
+              onPause={() => syncPreviewMusic('pause')}
+              onSeeked={(t) => syncPreviewMusic(previewMusicRef.current && !previewMusicRef.current.paused ? 'play' : 'seek', t)}
             />
+            {previewMusicSrc && (
+              <audio ref={previewMusicRef} src={previewMusicSrc} preload="auto" loop />
+            )}
+            {(muteOriginal || addMusic) && (
+              <p className="text-xs text-muted">
+                Preview: {addMusic ? 'original muted + music bed' : 'original muted'}.
+                Export writes this into the clip file.
+              </p>
+            )}
 
             <div className="rounded-lg border border-border bg-card p-4">
               <div className="mb-3 flex items-center justify-between text-sm">
@@ -537,6 +726,21 @@ export function Editor() {
               onCropYChange={setCropY}
             />
 
+            <AudioControls
+              muteOriginal={muteOriginal}
+              addMusic={addMusic}
+              musicTrackKey={musicTrackKey}
+              musicVolume={musicVolume}
+              tracks={musicTracks}
+              uploading={musicUploading}
+              onMuteOriginalChange={setMuteOriginal}
+              onAddMusicChange={setAddMusic}
+              onTrackChange={setMusicTrackKey}
+              onVolumeChange={setMusicVolume}
+              onUpload={(file) => void handleMusicUpload(file)}
+              onDeleteUserTrack={(track) => void handleDeleteUserTrack(track)}
+            />
+
             <ThumbnailPicker
               clip={clips.find((c) => c.id === editingClipId) ?? null}
               onUpload={async (file) => {
@@ -608,6 +812,12 @@ export function Editor() {
                               </div>
                               <div className="mt-1 text-xs text-muted">
                                 {clip.aspect_ratio} · {clip.resolution}
+                                {' · '}
+                                {clip.audio_mode === 'mute'
+                                  ? 'muted'
+                                  : clip.audio_mode === 'music'
+                                    ? 'music'
+                                    : 'original audio'}
                               </div>
                             </div>
                             <StatusBadge status={clip.status} />

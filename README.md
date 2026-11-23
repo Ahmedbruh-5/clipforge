@@ -51,6 +51,7 @@ Open http://127.0.0.1:5173 — the Vite dev server proxies `/api` to the backend
 - Metadata via FFprobe/FFmpeg + HTML5 preview with HTTP Range seeking
 - Manual timestamps + zoomable timeline (candidates + clip markers)
 - Vertical 9:16 crop (configurable crop_x/crop_y), 1080×1920 export
+- Clip audio modes: keep original, mute (silent AAC), or replace with built-in CC0 / uploaded music
 - Thumbnail generation / custom thumbnail upload
 - Traditional highlight detection (audio / silence / scene) — signal peaks, not “interestingness”
 - Candidate edit / delete / promote-to-clip

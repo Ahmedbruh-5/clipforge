@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     ffmpeg_path: str = "ffmpeg"
     ffprobe_path: str = "ffprobe"
 
+    max_music_upload_bytes: int = 25 * 1024 * 1024  # 25MB
+    allowed_music_extensions: str = ".mp3,.wav,.m4a,.ogg,.aac"
+
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     frontend_url: str = "http://127.0.0.1:5173"
 
@@ -94,6 +97,23 @@ class Settings(BaseSettings):
     @property
     def secrets_dir(self) -> Path:
         return self.storage_path / "secrets"
+
+    @property
+    def music_user_dir(self) -> Path:
+        return self.storage_path / "music" / "user"
+
+    @property
+    def music_builtin_dir(self) -> Path:
+        # backend/assets/music/builtin — next to the app package
+        return Path(__file__).resolve().parents[2] / "assets" / "music" / "builtin"
+
+    @property
+    def allowed_music_extension_set(self) -> set[str]:
+        return {
+            ext.strip().lower()
+            for ext in self.allowed_music_extensions.split(",")
+            if ext.strip()
+        }
 
     @property
     def resolved_youtube_token_path(self) -> Path:

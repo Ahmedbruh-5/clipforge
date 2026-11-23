@@ -55,6 +55,8 @@ def ensure_dirs() -> None:
         settings.processed_dir,
         settings.thumbnails_dir,
         settings.temp_dir,
+        settings.secrets_dir,
+        settings.music_user_dir,
     )
 
 

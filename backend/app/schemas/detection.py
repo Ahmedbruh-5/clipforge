@@ -34,6 +34,9 @@ class CandidatePromote(BaseModel):
     resolution: str = "1080x1920"
     crop_x: float = Field(default=0.5, ge=0.0, le=1.0)
     crop_y: float = Field(default=0.5, ge=0.0, le=1.0)
+    audio_mode: str = "original"
+    music_track_key: str | None = None
+    music_volume: float = Field(default=1.0, ge=0.0, le=2.0)
 
 
 class CandidateRead(BaseModel):

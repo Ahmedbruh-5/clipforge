@@ -1,3 +1,5 @@
+export type AudioMode = 'original' | 'mute' | 'music'
+
 export interface Video {
   id: number
   filename: string
@@ -33,12 +35,28 @@ export interface Clip {
   resolution: string
   crop_x: number | null
   crop_y: number | null
+  audio_mode: AudioMode
+  music_track_key: string | null
+  music_volume: number
   error_message: string | null
   created_at: string
   updated_at: string
   stream_url: string | null
   thumbnail_url: string | null
   video_title: string | null
+}
+
+export interface MusicTrack {
+  key: string
+  source: 'builtin' | 'user' | string
+  id: string
+  title: string
+  artist: string | null
+  license: string | null
+  attribution: string | null
+  filename: string
+  duration: number | null
+  file_size: number | null
 }
 
 export interface DetectionCandidate {
@@ -95,6 +113,9 @@ export interface ClipCreatePayload {
   crop_x?: number
   crop_y?: number
   review_status?: string
+  audio_mode?: AudioMode
+  music_track_key?: string | null
+  music_volume?: number
 }
 
 export interface YouTubeStatus {

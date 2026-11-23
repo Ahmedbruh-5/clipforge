@@ -198,46 +198,137 @@ def cut_clip(
     end_time: float,
     *,
     video_filter: str | None = None,
+    audio_mode: str = "original",
+    music_path: Path | None = None,
+    music_volume: float = 1.0,
 ) -> Path:
-    """Extract a time range to a new MP4 without modifying the source."""
+    """Extract a time range to a new MP4 without modifying the source.
+
+    audio_mode:
+      - original: keep source audio
+      - mute: silent AAC (anullsrc) — drops source audio
+      - music: replace source audio with music_path (looped/trimmed)
+    """
     if end_time <= start_time:
         raise FFmpegError("end_time must be greater than start_time")
+
+    mode = (audio_mode or "original").strip().lower()
+    if mode not in {"original", "mute", "music"}:
+        raise FFmpegError(f"Unsupported audio_mode '{audio_mode}'")
+    if mode == "music":
+        if music_path is None or not music_path.exists():
+            raise FFmpegError("music_path is required when audio_mode=music")
+    volume = max(0.0, min(float(music_volume), 2.0))
 
     ffmpeg = resolve_ffmpeg()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     duration = end_time - start_time
+    dur_s = f"{duration:.3f}"
 
-    cmd = [
-        ffmpeg,
-        "-y",
-        "-ss",
-        f"{start_time:.3f}",
-        "-i",
-        str(input_path),
-        "-t",
-        f"{duration:.3f}",
+    common_video = [
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-pix_fmt",
+        "yuv420p",
     ]
-    if video_filter:
-        cmd.extend(["-vf", video_filter])
-    cmd.extend(
-        [
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "23",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "128k",
-            "-movflags",
-            "+faststart",
-            str(output_path),
+    common_audio = ["-c:a", "aac", "-b:a", "128k"]
+    common_tail = ["-movflags", "+faststart", str(output_path)]
+
+    if mode == "original":
+        cmd = [
+            ffmpeg,
+            "-y",
+            "-ss",
+            f"{start_time:.3f}",
+            "-i",
+            str(input_path),
+            "-t",
+            dur_s,
         ]
-    )
+        if video_filter:
+            cmd.extend(["-vf", video_filter])
+        cmd.extend([*common_video, *common_audio, *common_tail])
+    elif mode == "mute":
+        # Silent stereo AAC — never map source audio.
+        cmd = [
+            ffmpeg,
+            "-y",
+            "-ss",
+            f"{start_time:.3f}",
+            "-t",
+            dur_s,
+            "-i",
+            str(input_path),
+            "-f",
+            "lavfi",
+            "-t",
+            dur_s,
+            "-i",
+            "anullsrc=channel_layout=stereo:sample_rate=44100",
+        ]
+        if video_filter:
+            cmd.extend(["-vf", video_filter])
+        cmd.extend(
+            [
+                *common_video,
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:a:0",
+                "-shortest",
+                *common_audio,
+                *common_tail,
+            ]
+        )
+    else:
+        # music: drop source audio; loop/trim replacement track to clip length.
+        # Apply a modest gain floor so quiet library beds stay audible.
+        fade_dur = min(0.75, max(duration * 0.05, 0.1))
+        fade_start = max(duration - fade_dur, 0.0)
+        gain = max(volume, 0.05) * 1.8
+        af = (
+            f"volume={gain:.4f},"
+            f"afade=t=in:st=0:d=0.05,"
+            f"afade=t=out:st={fade_start:.3f}:d={fade_dur:.3f},"
+            "aformat=sample_fmts=fltp:channel_layouts=stereo"
+        )
+        cmd = [
+            ffmpeg,
+            "-y",
+            "-ss",
+            f"{start_time:.3f}",
+            "-t",
+            dur_s,
+            "-i",
+            str(input_path),
+            "-stream_loop",
+            "-1",
+            "-i",
+            str(music_path),
+        ]
+        if video_filter:
+            cmd.extend(["-vf", video_filter])
+        cmd.extend(
+            [
+                "-filter_complex",
+                f"[1:a]{af}[aout]",
+                *common_video,
+                "-map",
+                "0:v:0",
+                "-map",
+                "[aout]",
+                "-shortest",
+                "-t",
+                dur_s,
+                *common_audio,
+                *common_tail,
+            ]
+        )
+
     result = _run(cmd, timeout=600)
     if result.returncode != 0 or not output_path.exists():
         raise FFmpegError(result.stderr.strip() or "FFmpeg clipping failed")
