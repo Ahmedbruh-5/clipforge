@@ -7,7 +7,7 @@ import { useToast } from '../components/common/ToastProvider'
 import { UploadZone } from '../components/video/UploadZone'
 import { deleteVideo, fetchVideos, getErrorMessage } from '../services/api'
 import type { Video } from '../types'
-import { formatBytes, formatDuration, formatResolution } from '../utils/format'
+import { formatBytes, formatDateTime12h, formatDuration, formatResolution } from '../utils/format'
 
 export function Library() {
   const [videos, setVideos] = useState<Video[]>([])
@@ -66,6 +66,7 @@ export function Library() {
           <thead className="border-b border-border bg-bg-secondary text-xs uppercase text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">File</th>
+              <th className="px-4 py-3 font-medium">Uploaded</th>
               <th className="px-4 py-3 font-medium">Duration</th>
               <th className="px-4 py-3 font-medium">Resolution</th>
               <th className="px-4 py-3 font-medium">Codec</th>
@@ -77,13 +78,13 @@ export function Library() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted">
+                <td colSpan={8} className="px-4 py-8 text-center text-muted">
                   Loading…
                 </td>
               </tr>
             ) : videos.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted">
+                <td colSpan={8} className="px-4 py-8 text-center text-muted">
                   No videos uploaded yet.
                 </td>
               </tr>
@@ -95,6 +96,9 @@ export function Library() {
                     {video.error_message && (
                       <div className="mt-1 text-xs text-amber-300">{video.error_message}</div>
                     )}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-muted">
+                    {formatDateTime12h(video.created_at)}
                   </td>
                   <td className="px-4 py-3 font-mono text-muted">
                     {formatDuration(video.duration)}

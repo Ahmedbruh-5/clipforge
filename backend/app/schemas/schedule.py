@@ -20,6 +20,37 @@ class YouTubeConnectResponse(BaseModel):
     message: str | None = None
 
 
+class YouTubeChannelStats(BaseModel):
+    channel_id: str | None = None
+    title: str | None = None
+    thumbnail_url: str | None = None
+    subscriber_count: int = 0
+    hidden_subscriber_count: bool = False
+    view_count: int = 0
+    video_count: int = 0
+    uploads_playlist_id: str | None = None
+
+
+class YouTubeShortStats(BaseModel):
+    video_id: str
+    title: str
+    published_at: str | None = None
+    duration_seconds: int
+    view_count: int = 0
+    like_count: int | None = None
+    comment_count: int | None = None
+    thumbnail_url: str | None = None
+    youtube_url: str
+
+
+class YouTubeShortsListResponse(BaseModel):
+    items: list[YouTubeShortStats]
+    next_page_token: str | None = None
+    total_returned: int = 0
+    channel_title: str | None = None
+    channel_id: str | None = None
+
+
 class ScheduleCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=100)
     description: str = ""

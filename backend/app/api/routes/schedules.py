@@ -8,7 +8,9 @@ from app.schemas.schedule import (
     ScheduleCreate,
     ScheduleListResponse,
     ScheduleRead,
+    YouTubeChannelStats,
     YouTubeConnectResponse,
+    YouTubeShortsListResponse,
     YouTubeStatus,
 )
 from app.services import schedule_service, youtube_service
@@ -68,6 +70,28 @@ def youtube_callback(code: str | None = None, error: str | None = None):
 def youtube_disconnect():
     youtube_service.disconnect()
     return {"connected": False}
+
+
+@router.get("/youtube/analytics/channel", response_model=YouTubeChannelStats)
+def youtube_channel_analytics():
+    try:
+        return youtube_service.fetch_channel_stats()
+    except YouTubeServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
+@router.get("/youtube/analytics/shorts", response_model=YouTubeShortsListResponse)
+def youtube_shorts_analytics(
+    max_results: int = Query(default=25, ge=1, le=50),
+    page_token: str | None = Query(default=None),
+):
+    try:
+        return youtube_service.list_channel_shorts(
+            max_results=max_results,
+            page_token=page_token,
+        )
+    except YouTubeServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
 @router.get("/schedules", response_model=ScheduleListResponse)

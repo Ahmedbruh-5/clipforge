@@ -10,7 +10,9 @@ import type {
   PublishSchedule,
   ScheduleCreatePayload,
   Video,
+  YouTubeChannelStats,
   YouTubeConnectResponse,
+  YouTubeShortsListResponse,
   YouTubeStatus,
 } from '../types'
 
@@ -187,6 +189,24 @@ export async function connectYouTube(): Promise<YouTubeConnectResponse> {
 
 export async function disconnectYouTube(): Promise<void> {
   await api.post('/youtube/disconnect')
+}
+
+export async function fetchYouTubeChannelStats(): Promise<YouTubeChannelStats> {
+  const { data } = await api.get<YouTubeChannelStats>('/youtube/analytics/channel')
+  return data
+}
+
+export async function fetchYouTubeShorts(params?: {
+  max_results?: number
+  page_token?: string | null
+}): Promise<YouTubeShortsListResponse> {
+  const { data } = await api.get<YouTubeShortsListResponse>('/youtube/analytics/shorts', {
+    params: {
+      max_results: params?.max_results ?? 25,
+      page_token: params?.page_token || undefined,
+    },
+  })
+  return data
 }
 
 export async function fetchSchedules(status?: string): Promise<PublishSchedule[]> {

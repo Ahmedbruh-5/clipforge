@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -157,6 +158,7 @@ def disconnect() -> None:
 
 
 def _load_credentials():
+    from google.auth.exceptions import RefreshError
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
 
@@ -188,12 +190,167 @@ def _load_credentials():
         credentials.expiry = expiry
 
     if credentials.expired and credentials.refresh_token:
-        credentials.refresh(Request())
+        try:
+            credentials.refresh(Request())
+        except RefreshError as exc:
+            raise YouTubeServiceError(
+                "YouTube access expired or was revoked. Open Settings, disconnect, "
+                "then Connect YouTube again.",
+                status_code=401,
+            ) from exc
         data["token"] = credentials.token
         data["expiry"] = credentials.expiry.isoformat() if credentials.expiry else None
         _token_path().write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     return credentials
+
+
+def _parse_iso8601_duration(value: str | None) -> int | None:
+    """Parse YouTube ISO-8601 durations like PT1M5S into whole seconds."""
+    if not value or not value.startswith("P"):
+        return None
+
+    match = re.fullmatch(
+        r"P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?",
+        value,
+    )
+    if not match:
+        return None
+    days, hours, minutes, seconds = (int(g or 0) for g in match.groups())
+    return days * 86400 + hours * 3600 + minutes * 60 + seconds
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+# YouTube Shorts can be up to 3 minutes.
+SHORTS_MAX_DURATION_SECONDS = 180
+
+
+def fetch_channel_stats() -> dict[str, Any]:
+    """Channel overview: subscribers, lifetime views, video count."""
+    youtube = _youtube_client()
+    response = youtube.channels().list(
+        part="snippet,statistics,contentDetails",
+        mine=True,
+    ).execute()
+    items = response.get("items") or []
+    if not items:
+        raise YouTubeServiceError("No YouTube channel found for this account.", status_code=404)
+
+    item = items[0]
+    snippet = item.get("snippet") or {}
+    statistics = item.get("statistics") or {}
+    thumbs = snippet.get("thumbnails") or {}
+    thumb = (
+        (thumbs.get("medium") or {}).get("url")
+        or (thumbs.get("default") or {}).get("url")
+    )
+    uploads = ((item.get("contentDetails") or {}).get("relatedPlaylists") or {}).get(
+        "uploads"
+    )
+
+    return {
+        "channel_id": item.get("id"),
+        "title": snippet.get("title"),
+        "thumbnail_url": thumb,
+        "subscriber_count": _safe_int(statistics.get("subscriberCount")),
+        "hidden_subscriber_count": bool(statistics.get("hiddenSubscriberCount")),
+        "view_count": _safe_int(statistics.get("viewCount")),
+        "video_count": _safe_int(statistics.get("videoCount")),
+        "uploads_playlist_id": uploads,
+    }
+
+
+def list_channel_shorts(
+    *,
+    max_results: int = 25,
+    page_token: str | None = None,
+) -> dict[str, Any]:
+    """List recent uploads that look like Shorts, with per-video view counts."""
+    max_results = max(1, min(max_results, 50))
+    stats = fetch_channel_stats()
+    uploads_playlist_id = stats.get("uploads_playlist_id")
+    if not uploads_playlist_id:
+        return {"items": [], "next_page_token": None, "total_returned": 0}
+
+    youtube = _youtube_client()
+    playlist = youtube.playlistItems().list(
+        part="contentDetails,snippet",
+        playlistId=uploads_playlist_id,
+        maxResults=max_results,
+        pageToken=page_token or None,
+    ).execute()
+
+    playlist_items = playlist.get("items") or []
+    video_ids = [
+        ((item.get("contentDetails") or {}).get("videoId"))
+        for item in playlist_items
+        if (item.get("contentDetails") or {}).get("videoId")
+    ]
+
+    details_by_id: dict[str, dict[str, Any]] = {}
+    if video_ids:
+        videos = youtube.videos().list(
+            part="snippet,contentDetails,statistics",
+            id=",".join(video_ids),
+        ).execute()
+        for video in videos.get("items") or []:
+            vid = video.get("id")
+            if vid:
+                details_by_id[vid] = video
+
+    shorts: list[dict[str, Any]] = []
+    for video_id in video_ids:
+        video = details_by_id.get(video_id)
+        if not video:
+            continue
+        duration = _parse_iso8601_duration(
+            (video.get("contentDetails") or {}).get("duration")
+        )
+        if duration is None or duration > SHORTS_MAX_DURATION_SECONDS or duration <= 0:
+            continue
+
+        snippet = video.get("snippet") or {}
+        statistics = video.get("statistics") or {}
+        thumbs = snippet.get("thumbnails") or {}
+        thumb = (
+            (thumbs.get("medium") or {}).get("url")
+            or (thumbs.get("default") or {}).get("url")
+        )
+        shorts.append(
+            {
+                "video_id": video_id,
+                "title": snippet.get("title") or "Untitled",
+                "published_at": snippet.get("publishedAt"),
+                "duration_seconds": duration,
+                "view_count": _safe_int(statistics.get("viewCount")),
+                "like_count": (
+                    _safe_int(statistics["likeCount"])
+                    if "likeCount" in statistics
+                    else None
+                ),
+                "comment_count": (
+                    _safe_int(statistics["commentCount"])
+                    if "commentCount" in statistics
+                    else None
+                ),
+                "thumbnail_url": thumb,
+                "youtube_url": f"https://youtube.com/shorts/{video_id}",
+            }
+        )
+
+    return {
+        "items": shorts,
+        "next_page_token": playlist.get("nextPageToken"),
+        "total_returned": len(shorts),
+        "channel_title": stats.get("title"),
+        "channel_id": stats.get("channel_id"),
+    }
 
 
 def _youtube_client():

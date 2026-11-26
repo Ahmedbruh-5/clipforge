@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   CalendarClock,
   Clapperboard,
   LayoutDashboard,
@@ -14,6 +15,7 @@ const links = [
   { to: '/editor', label: 'Clip Editor', icon: Clapperboard },
   { to: '/review', label: 'Clip Review', icon: ListChecks },
   { to: '/schedule', label: 'Scheduled', icon: CalendarClock },
+  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
 

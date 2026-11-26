@@ -135,6 +135,37 @@ export interface YouTubeConnectResponse {
   message: string | null
 }
 
+export interface YouTubeChannelStats {
+  channel_id: string | null
+  title: string | null
+  thumbnail_url: string | null
+  subscriber_count: number
+  hidden_subscriber_count: boolean
+  view_count: number
+  video_count: number
+  uploads_playlist_id: string | null
+}
+
+export interface YouTubeShortStats {
+  video_id: string
+  title: string
+  published_at: string | null
+  duration_seconds: number
+  view_count: number
+  like_count: number | null
+  comment_count: number | null
+  thumbnail_url: string | null
+  youtube_url: string
+}
+
+export interface YouTubeShortsListResponse {
+  items: YouTubeShortStats[]
+  next_page_token: string | null
+  total_returned: number
+  channel_title: string | null
+  channel_id: string | null
+}
+
 export interface PublishSchedule {
   id: number
   clip_id: number
